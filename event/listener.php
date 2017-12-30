@@ -10,6 +10,10 @@
 namespace forumhulp\loginwithemail\event;
 
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use phpbb\user;
+use phpbb\config\config;
+use phpbb\request\request;
+use phpbb\template\template;
 
 /**
 * Event listener
@@ -24,7 +28,7 @@ class listener implements EventSubscriberInterface
 	/**
 	* Constructor
 	*/
-	public function __construct(\phpbb\user $user, \phpbb\config\config $config, \phpbb\request\request $request, \phpbb\template\template $template)
+	public function __construct(user $user, config $config, request $request, template $template)
 	{
 		$this->user = $user;
 		$this->config = $config;
@@ -35,15 +39,15 @@ class listener implements EventSubscriberInterface
 	static public function getSubscribedEvents()
 	{
 		return array(
-			'forumhulp.loginwithemail.modify_sql'	=> 'login_with_email',
 			'core.page_header_after'				=> 'add_email',
+			'forumhulp.loginwithemail.modify_sql'	=> 'login_with_email',
 			'core.acp_board_config_edit_add'		=> 'load_config_on_setup',
 		);
 	}
 
 	public function add_email($event)
 	{
-		if ($this->user->data['user_id'] == ANONYMOUS && $this->config['allow_email_login'] && !$this->request->is_set_post('agreed'))
+		if ($this->user->data['user_id'] == ANONYMOUS && $this->config['allow_email_login'] && !$this->request->is_set_post('agreed') && $this->request->variable('mode', '') != 'sendpassword')
 		{
 			$this->user->add_lang_ext('forumhulp/loginwithemail', 'info_acp_loginwithemail');
 			$this->template->assign_var('L_USERNAME', $this->user->lang['USERNAME'] . $this->user->lang['WITH_EMAIL']);
@@ -52,7 +56,7 @@ class listener implements EventSubscriberInterface
 
 	public function login_with_email($event)
 	{
-		if (!defined('ADMIN_START') && $this->config['allow_email_login'])
+		if (!defined('ADMIN_START') && $this->config['allow_email_login'] && $this->request->variable('mode', '') != 'sendpassword')
 		{
 			$user_email = $event['username_clean'];
 
@@ -74,9 +78,7 @@ class listener implements EventSubscriberInterface
 		{
 			if ($event['submit'])
 			{
-				$this->request->enable_super_globals();
-				$_POST['config']['allow_email_login'] = 0;
-				$this->request->disable_super_globals();
+				$this->request->overwrite('allow_email_login', 0, \phpbb\request\request_interface::POST);
 			}
 
 			$display_vars = $event['display_vars'];
